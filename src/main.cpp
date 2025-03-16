@@ -9,27 +9,22 @@
 #define LED_TYPE       WS2812B
 #define COLOR_ORDER    GRB
 #define LEDS_PER_STRIP 17
-#define MAX_STRIPS     30               // Maximum number of strips supported
+#define MAX_STRIPS     30               // Always 30 strips
 #define MAX_LEDS       (LEDS_PER_STRIP * MAX_STRIPS)
 
 CRGB leds[MAX_LEDS];
+const int currentLEDCount = MAX_LEDS;  // Always drive all LEDs
 
-// -------- Global state and pattern parameters -------- //
-bool ledRunning = true;                // Toggle for LED effect
-int numStrips = MAX_STRIPS;            // Default: maximum strips
-int currentLEDCount = LEDS_PER_STRIP * MAX_STRIPS; // Actual number of LEDs
+// -------- Global pattern parameters -------- //
+bool ledRunning = true;                // LED effect on/off
+int Speed = 50;         // (0-255) slider for speed (not used in every pattern)
+int Hue = 0;            // (0-255) slider; auto-incremented for rainbow effect
+int Saturation = 255;   // (0-255) slider
+int Brightness = 128;   // (0-255) slider
 
-// Pattern parameter defaults (settable via the webpage)
-int Speed = 50;         // (0-255)
-int Hue = 0;            // (0-255)
-int Saturation = 255;   // (0-255)
-int Brightness = 128;   // (0-255)
-
-int PatMode = 0;        // Pattern mode (0 to 6)
-int ColMode = 0;        // Colour mode (0: fixed, 1: rainbow)
-
+// Pattern mode (0 to 6)
+int PatMode = 0;
 const int NumPatternModes = 7;
-const int NumColourModes = 2;
 
 // -------- Variables for additional patterns -------- //
 
@@ -72,28 +67,27 @@ int ChristmasColour[2][3] = {
 };
 
 // Vertex array for FIREWORKS, PACMAN, etc.
-// Each row contains three vertices (connections) for a given vertex.
 int VertexArrayData[NumVertices][VertexConnections] = {
   {84,  85,   0},  // A
   {16,  17, 152},  // B
-  {101,102,339},  // C
+  {101,102,339},   // C
   {67,  68, 305},  // D
   {50,  51, 254},  // E
   {33,  34, 203},  // F
-  {135,136,153},  // G
-  {118,119,390},  // H
-  {322,323,340},  // I
-  {288,289,306},  // J
-  {271,272,492},  // K
-  {237,238,255},  // L
-  {186,187,204},  // M
-  {169,170,424},  // N
-  {373,374,391},  // O
-  {356,357,509},  // P
-  {475,476,493},  // Q
-  {220,221,458},  // R
-  {407,408,425},  // S
-  {441,442,459}   // T
+  {135,136,153},   // G
+  {118,119,390},   // H
+  {322,323,340},   // I
+  {288,289,306},   // J
+  {271,272,492},   // K
+  {237,238,255},   // L
+  {186,187,204},   // M
+  {169,170,424},   // N
+  {373,374,391},   // O
+  {356,357,509},   // P
+  {475,476,493},   // Q
+  {220,221,458},   // R
+  {407,408,425},   // S
+  {441,442,459}    // T
 };
 
 // -------- Web server -------- //
@@ -101,34 +95,44 @@ WebServer server(80);
 
 // -------- HTML page -------- //
 String htmlPage() {
-  String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>ESP32 LED Control</title></head><body>";
+  String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>ESP32 LED Control</title>";
+  html += "<style>body { font-family: Arial, sans-serif; background: #f0f0f0; margin: 20px; }";
+  html += "h1 { color: #333; }";
+  html += "form { margin: 10px 0; padding: 10px; background: #fff; border-radius: 5px; }";
+  html += ".slider { width: 100%; }";
+  html += ".button { padding: 10px 15px; margin: 5px; border: none; border-radius: 5px; background: #4285f4; color: white; cursor: pointer; }";
+  html += ".button:hover { background: #357ae8; }";
+  html += "</style></head><body>";
+  
   html += "<h1>ESP32 LED Control</h1>";
-  html += "<p>LED effect is currently <strong>" + String(ledRunning ? "RUNNING" : "STOPPED") + "</strong>.</p>";
-  html += "<p><a href=\"/toggle\">Toggle LED Effect</a></p>";
-  html += "<hr>";
   
-  // LED configuration form
-  html += "<h2>LED Configuration</h2>";
-  html += "<form action=\"/setStrips\" method=\"POST\">";
-  html += "Number of strips (1-" + String(MAX_STRIPS) + "): <input type=\"number\" name=\"strips\" min=\"1\" max=\"" + String(MAX_STRIPS) + "\" value=\"" + String(numStrips) + "\">";
-  html += "<input type=\"submit\" value=\"Set\">";
+  // Enable/Disable Button
+  html += "<form action='/toggle' method='GET'>";
+  html += "<button class='button' type='submit'>" + String(ledRunning ? "Disable LED Effect" : "Enable LED Effect") + "</button>";
   html += "</form>";
   
-  html += "<hr>";
-  
-  // Pattern parameters form
-  html += "<h2>Pattern Parameters</h2>";
-  html += "<form action=\"/setParams\" method=\"POST\">";
-  html += "Pattern Mode (0-" + String(NumPatternModes - 1) + "): <input type=\"number\" name=\"patMode\" min=\"0\" max=\"" + String(NumPatternModes - 1) + "\" value=\"" + String(PatMode) + "\"><br>";
-  html += "Colour Mode (0-" + String(NumColourModes - 1) + "): <input type=\"number\" name=\"colMode\" min=\"0\" max=\"" + String(NumColourModes - 1) + "\" value=\"" + String(ColMode) + "\"><br>";
-  html += "Speed (0-255): <input type=\"number\" name=\"speed\" min=\"0\" max=\"255\" value=\"" + String(Speed) + "\"><br>";
-  html += "Hue (0-255): <input type=\"number\" name=\"hue\" min=\"0\" max=\"255\" value=\"" + String(Hue) + "\"><br>";
-  html += "Saturation (0-255): <input type=\"number\" name=\"saturation\" min=\"0\" max=\"255\" value=\"" + String(Saturation) + "\"><br>";
-  html += "Brightness (0-255): <input type=\"number\" name=\"brightness\" min=\"0\" max=\"255\" value=\"" + String(Brightness) + "\"><br>";
-  html += "<input type=\"submit\" value=\"Set Parameters\">";
+  // Sliders for parameters
+  html += "<h2>Set Parameters</h2>";
+  html += "<form action='/setParams' method='POST'>";
+  html += "Speed: <input class='slider' type='range' name='speed' min='0' max='255' value='" + String(Speed) + "' oninput='this.nextElementSibling.value = this.value'> <output>" + String(Speed) + "</output><br>";
+  html += "Hue: <input class='slider' type='range' name='hue' min='0' max='255' value='" + String(Hue) + "' oninput='this.nextElementSibling.value = this.value'> <output>" + String(Hue) + "</output><br>";
+  html += "Saturation: <input class='slider' type='range' name='saturation' min='0' max='255' value='" + String(Saturation) + "' oninput='this.nextElementSibling.value = this.value'> <output>" + String(Saturation) + "</output><br>";
+  html += "Brightness: <input class='slider' type='range' name='brightness' min='0' max='255' value='" + String(Brightness) + "' oninput='this.nextElementSibling.value = this.value'> <output>" + String(Brightness) + "</output><br>";
+  html += "<button class='button' type='submit'>Set Parameters</button>";
   html += "</form>";
   
-  html += "<hr>";
+  // Pattern selection buttons
+  html += "<h2>Select Pattern</h2>";
+  html += "<form action='/setPattern' method='GET'>";
+  html += "<button class='button' type='submit' name='mode' value='0'>Static</button>";
+  html += "<button class='button' type='submit' name='mode' value='1'>Sparkle</button>";
+  html += "<button class='button' type='submit' name='mode' value='2'>Comets</button>";
+  html += "<button class='button' type='submit' name='mode' value='3'>Fireworks</button>";
+  html += "<button class='button' type='submit' name='mode' value='4'>Marquee</button>";
+  html += "<button class='button' type='submit' name='mode' value='5'>PacMan</button>";
+  html += "<button class='button' type='submit' name='mode' value='6'>Christmas</button>";
+  html += "</form>";
+  
   html += "</body></html>";
   return html;
 }
@@ -144,29 +148,7 @@ void handleToggle() {
   server.send(303);
 }
 
-void handleSetStrips() {
-  if (server.hasArg("strips")) {
-    int strips = server.arg("strips").toInt();
-    if (strips >= 1 && strips <= MAX_STRIPS) {
-      numStrips = strips;
-      currentLEDCount = LEDS_PER_STRIP * numStrips;
-    }
-  }
-  server.sendHeader("Location", "/");
-  server.send(303);
-}
-
 void handleSetParams() {
-  if (server.hasArg("patMode")) {
-    PatMode = server.arg("patMode").toInt();
-    if (PatMode < 0) PatMode = 0;
-    if (PatMode >= NumPatternModes) PatMode = NumPatternModes - 1;
-  }
-  if (server.hasArg("colMode")) {
-    ColMode = server.arg("colMode").toInt();
-    if (ColMode < 0) ColMode = 0;
-    if (ColMode >= NumColourModes) ColMode = NumColourModes - 1;
-  }
   if (server.hasArg("speed")) {
     Speed = server.arg("speed").toInt();
     if (Speed < 0) Speed = 0;
@@ -191,14 +173,19 @@ void handleSetParams() {
   server.send(303);
 }
 
-// -------- Pattern Functions -------- //
-
-// Colour Mode 0: use fixed values from the webpage
-void ColourMode0() {
-  // No extra processing needed; parameters come from web inputs.
+void handleSetPattern() {
+  if (server.hasArg("mode")) {
+    PatMode = server.arg("mode").toInt();
+    if (PatMode < 0) PatMode = 0;
+    if (PatMode >= NumPatternModes) PatMode = NumPatternModes - 1;
+  }
+  server.sendHeader("Location", "/");
+  server.send(303);
 }
 
-// Colour Mode 1: rainbow effect (automatically increment hue)
+// -------- Pattern Functions -------- //
+
+// Always use rainbow effect: auto-increment Hue
 void ColourMode1() {
   Hue = (Hue + 1) % 255;
 }
@@ -221,14 +208,10 @@ void PatternMode1() {
   fadeToBlackBy(leds, currentLEDCount, 15);
 }
 
-// Pattern Mode 2 - COMETS
+// Pattern Mode 2 - COMETS (always rainbow style)
 void PatternMode2() {
   for (int x = 0; x < NumComets; x++){
-    if(ColMode == 0) {
-      leds[CometLED[x]] = CHSV(Hue, Saturation, Brightness);
-    } else if(ColMode == 1) {
-      leds[CometLED[x]] = leds[CometLED[x]] + CHSV(CometColour[x], Saturation, Brightness);
-    }
+    leds[CometLED[x]] = leds[CometLED[x]] + CHSV(CometColour[x], Saturation, Brightness);
     
     if (CometCounter[x] < (LEDS_PER_STRIP - 1)) {
       CometLED[x] = CometLED[x] + CometDirection[x];
@@ -253,15 +236,11 @@ void PatternMode2() {
   fadeToBlackBy(leds, currentLEDCount, 50);
 }
 
-// Pattern Mode 3 - FIREWORKS
+// Pattern Mode 3 - FIREWORKS (always rainbow style)
 void PatternMode3() {
   if (FireCounter < FireSize) {
     for (int x = 0; x < VertexConnections; x++){
-      if (ColMode == 0) {
-        leds[FireLED[x]] = CHSV(Hue, Saturation, Brightness);
-      } else if (ColMode == 1) {
-        leds[FireLED[x]] = CHSV(FireColour, Saturation, Brightness);
-      }
+      leds[FireLED[x]] = CHSV(FireColour, Saturation, Brightness);
       FireLED[x] = FireLED[x] + FireDirection[x];
     }
     FireCounter++;
@@ -510,8 +489,8 @@ void setup() {
   // Configure web server routes
   server.on("/", HTTP_GET, handleRoot);
   server.on("/toggle", HTTP_GET, handleToggle);
-  server.on("/setStrips", HTTP_POST, handleSetStrips);
   server.on("/setParams", HTTP_POST, handleSetParams);
+  server.on("/setPattern", HTTP_GET, handleSetPattern);
   server.begin();
   Serial.println("HTTP server started.");
 }
@@ -521,11 +500,8 @@ void loop() {
   server.handleClient();
   
   if (ledRunning) {
-    // Process colour mode
-    if (ColMode == 0)
-      ColourMode0();
-    else if (ColMode == 1)
-      ColourMode1();
+    // Always use rainbow colour mode (auto-increment hue)
+    ColourMode1();
     
     // Execute selected pattern mode
     switch (PatMode) {
