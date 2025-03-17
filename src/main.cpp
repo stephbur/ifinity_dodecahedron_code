@@ -17,14 +17,14 @@ const int currentLEDCount = MAX_LEDS;  // Always drive all LEDs
 
 // -------- Global pattern parameters -------- //
 bool ledRunning = true;                // LED effect on/off
-int Speed = 50;         // (0-255) slider for speed (not used in every pattern)
+int Speed = 50;         // (0-255) slider for speed (affects several patterns)
 int Hue = 0;            // (0-255) slider; auto-incremented for rainbow effect
 int Saturation = 255;   // (0-255) slider
 int Brightness = 128;   // (0-255) slider
 
-// Pattern mode (0 to 6)
+// Pattern mode (0 to 14)
 int PatMode = 0;
-const int NumPatternModes = 7;
+const int NumPatternModes = 15;
 
 // -------- Variables for additional patterns -------- //
 
@@ -97,7 +97,7 @@ WebServer server(80);
 String htmlPage() {
   String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>ESP32 LED Control</title>";
   html += "<style>body { font-family: Arial, sans-serif; background: #f0f0f0; margin: 20px; }";
-  html += "h1 { color: #333; }";
+  html += "h1, h2 { color: #333; }";
   html += "form { margin: 10px 0; padding: 10px; background: #fff; border-radius: 5px; }";
   html += ".slider { width: 100%; }";
   html += ".button { padding: 10px 15px; margin: 5px; border: none; border-radius: 5px; background: #4285f4; color: white; cursor: pointer; }";
@@ -121,7 +121,7 @@ String htmlPage() {
   html += "<button class='button' type='submit'>Set Parameters</button>";
   html += "</form>";
   
-  // Pattern selection buttons
+  // Pattern selection buttons (grouped in two rows for clarity)
   html += "<h2>Select Pattern</h2>";
   html += "<form action='/setPattern' method='GET'>";
   html += "<button class='button' type='submit' name='mode' value='0'>Static</button>";
@@ -130,7 +130,15 @@ String htmlPage() {
   html += "<button class='button' type='submit' name='mode' value='3'>Fireworks</button>";
   html += "<button class='button' type='submit' name='mode' value='4'>Marquee</button>";
   html += "<button class='button' type='submit' name='mode' value='5'>PacMan</button>";
-  html += "<button class='button' type='submit' name='mode' value='6'>Christmas</button>";
+  html += "<button class='button' type='submit' name='mode' value='6'>Christmas</button><br>";
+  html += "<button class='button' type='submit' name='mode' value='7'>Breathing</button>";
+  html += "<button class='button' type='submit' name='mode' value='8'>Spiral</button>";
+  html += "<button class='button' type='submit' name='mode' value='9'>Ripple</button>";
+  html += "<button class='button' type='submit' name='mode' value='10'>Kaleidoscope</button>";
+  html += "<button class='button' type='submit' name='mode' value='11'>Particle</button>";
+  html += "<button class='button' type='submit' name='mode' value='12'>Matrix Rain</button>";
+  html += "<button class='button' type='submit' name='mode' value='13'>Aurora</button>";
+  html += "<button class='button' type='submit' name='mode' value='14'>Glitter</button>";
   html += "</form>";
   
   html += "</body></html>";
@@ -185,8 +193,8 @@ void handleSetPattern() {
 
 // -------- Pattern Functions -------- //
 
-// Always use rainbow effect: auto-increment Hue
-void ColourMode1() {
+// Always use rainbow colour mode: auto-increment Hue
+void updateHue() {
   Hue = (Hue + 1) % 255;
 }
 
@@ -208,7 +216,7 @@ void PatternMode1() {
   fadeToBlackBy(leds, currentLEDCount, 15);
 }
 
-// Pattern Mode 2 - COMETS (always rainbow style)
+// Pattern Mode 2 - COMETS (rainbow style)
 void PatternMode2() {
   for (int x = 0; x < NumComets; x++){
     leds[CometLED[x]] = leds[CometLED[x]] + CHSV(CometColour[x], Saturation, Brightness);
@@ -236,7 +244,7 @@ void PatternMode2() {
   fadeToBlackBy(leds, currentLEDCount, 50);
 }
 
-// Pattern Mode 3 - FIREWORKS (always rainbow style)
+// Pattern Mode 3 - FIREWORKS (rainbow style)
 void PatternMode3() {
   if (FireCounter < FireSize) {
     for (int x = 0; x < VertexConnections; x++){
@@ -284,67 +292,27 @@ void PatternMode4() {
   t++;
 }
 
-// Helper functions for PACMAN (PatternMode5)
-void ResetPacMan() {
-  for (int i = 1; i < 5; i++){
-    int RandPick = random(0, 3);
-    PacManStart[i] = VertexArrayData[19][RandPick];
-    PacManCounter[i] = 0;
-    PacManLED[i] = PacManStart[i];
-  }
-  int RandPick = random(0, 3);
-  PacManStart[0] = VertexArrayData[0][RandPick];
-  PacManCounter[0] = 0;
-  PacManLED[0] = PacManStart[0];
-  for (int i = 0; i < 5; i++){
-    if ((PacManStart[i] % LEDS_PER_STRIP) == 0) {
-      PacManDirection[i] = 1;
-    } else {
-      PacManDirection[i] = -1;
-    }
-  }
-}
-
-void SetPacMan() {
-  ResetPacMan();
-  FastLED.clear();
-  for (int i = 0; i < currentLEDCount; i++){
-    if ((i % 2) == 0) {
-      leds[i] = CHSV(10, 80, (Brightness / 10));
-    } else {
-      leds[i] = CRGB::Black;
-    }
-  }
-  for (int i = 0; i < NumVertices; i++){
-    for (int j = 0; j < VertexConnections; j++){
-      leds[VertexArrayData[i][j]] = CHSV(165, 255, Brightness / 2);
-    }
-  }
-}
-
-void DiePacMan() {
-  int Flash = 1;
-  for (int i = 0; i < 5; i++){
-    leds[PacManLED[i]] = CRGB::Black;
-    FastLED.show();
-  }
-  ResetPacMan();
-  for (int j = 0; j < 6; j++){
-    for (int i = 0; i < NumVertices; i++){
-      for (int k = 0; k < VertexConnections; k++){
-        leds[VertexArrayData[i][k]] = CHSV(0, 255, Flash * (Brightness / 2));
-      }
-    }
-    FastLED.show();
-    delay(300);
-    Flash = (Flash + 1) % 2;
-  }
-}
-
 // Pattern Mode 5 - PACMAN
 void PatternMode5() {
   if (Game == 0) {
-    SetPacMan();
+    // Initialization routine for PacMan
+    for (int i = 1; i < 5; i++){
+      int RandPick = random(0, 3);
+      PacManStart[i] = VertexArrayData[19][RandPick];
+      PacManCounter[i] = 0;
+      PacManLED[i] = PacManStart[i];
+    }
+    int RandPick = random(0, 3);
+    PacManStart[0] = VertexArrayData[0][RandPick];
+    PacManCounter[0] = 0;
+    PacManLED[0] = PacManStart[0];
+    for (int i = 0; i < 5; i++){
+      if ((PacManStart[i] % LEDS_PER_STRIP) == 0) {
+        PacManDirection[i] = 1;
+      } else {
+        PacManDirection[i] = -1;
+      }
+    }
   }
   
   leds[PacManLED[0]] = CRGB::Black;
@@ -379,7 +347,8 @@ void PatternMode5() {
       PacManCounter[i]++;
       
       if (PacManLED[i] == PacManLED[0]) {
-        DiePacMan();
+        // Reset PacMan on collision
+        Game = 0;
       }
       
       if (PacManCounter[i] == (LEDS_PER_STRIP - 1)) {
@@ -409,7 +378,6 @@ void PatternMode5() {
   }
   
   Game++;
-  FastLED.show();
   delay(70);
 }
 
@@ -419,6 +387,117 @@ void PatternMode6() {
   int x = random(0, 3);
   leds[n] = CHSV(ChristmasColour[0][x], ChristmasColour[1][x], Brightness);
   fadeToBlackBy(leds, currentLEDCount, 15);
+}
+
+// --------------------- New Patterns ---------------------- //
+
+// Pattern Mode 7 - Breathing (Pulsing) Effect
+void PatternMode7() {
+  static uint8_t breathCounter = 0;
+  breathCounter++;  
+  // sin8 produces a sine wave (0-255)
+  uint8_t breath = sin8(breathCounter * (Speed / 5 + 1));
+  fill_solid(leds, currentLEDCount, CHSV(Hue, Saturation, (Brightness * breath) / 255));
+}
+
+// Pattern Mode 8 - Spiral/Rotational Effect
+void PatternMode8() {
+  static int offset = 0;
+  offset = (offset + Speed/20 + 1) % currentLEDCount;
+  for (int i = 0; i < currentLEDCount; i++) {
+      uint8_t pos = (i + offset) % 255;
+      leds[i] = CHSV(pos, Saturation, Brightness);
+  }
+}
+
+// Pattern Mode 9 - Ripple/Wave Effect
+void PatternMode9() {
+  static uint32_t timeCounter = 0;
+  timeCounter++;
+  for (int i = 0; i < currentLEDCount; i++) {
+      uint8_t wave = sin8(i * 8 + timeCounter * (Speed/10 + 1));
+      leds[i] = CHSV(Hue, Saturation, (Brightness * wave) / 255);
+  }
+}
+
+// Pattern Mode 10 - Kaleidoscopic Symmetry
+void PatternMode10() {
+  int half = currentLEDCount / 2;
+  uint32_t t = millis() * Speed / 100;
+  for (int i = 0; i < half; i++) {
+      uint8_t pos = (i + t) % 255;
+      CRGB col = CHSV(pos, Saturation, Brightness);
+      leds[i] = col;
+      leds[currentLEDCount - 1 - i] = col;
+  }
+  if (currentLEDCount % 2 == 1) {
+      leds[half] = CHSV(Hue, Saturation, Brightness);
+  }
+}
+
+// Pattern Mode 11 - Particle/Firefly Simulation
+#define NUM_PARTICLES 10
+void PatternMode11() {
+  static int particlePositions[NUM_PARTICLES];
+  static uint8_t particleBrightness[NUM_PARTICLES];
+  static bool init = false;
+  if (!init) {
+    for (int i = 0; i < NUM_PARTICLES; i++) {
+      particlePositions[i] = random(0, currentLEDCount);
+      particleBrightness[i] = 0;
+    }
+    init = true;
+  }
+  fadeToBlackBy(leds, currentLEDCount, 20);
+  int idx = random(0, NUM_PARTICLES);
+  particlePositions[idx] = random(0, currentLEDCount);
+  particleBrightness[idx] = Brightness;
+  
+  for (int i = 0; i < NUM_PARTICLES; i++) {
+      if (particleBrightness[i] > 0) {
+         leds[particlePositions[i]] = CHSV(Hue, Saturation, particleBrightness[i]);
+         particleBrightness[i] = (particleBrightness[i] > 5 ? particleBrightness[i] - 5 : 0);
+      }
+  }
+}
+
+// Pattern Mode 12 - Digital Rain / Matrix Effect
+void PatternMode12() {
+  static int dropPositions[MAX_STRIPS];
+  static bool init = false;
+  if (!init) {
+      for (int s = 0; s < MAX_STRIPS; s++) {
+         dropPositions[s] = random(0, LEDS_PER_STRIP);
+      }
+      init = true;
+  }
+  fadeToBlackBy(leds, currentLEDCount, 50);
+  for (int s = 0; s < MAX_STRIPS; s++) {
+      int baseIndex = s * LEDS_PER_STRIP;
+      leds[baseIndex + dropPositions[s]] = CHSV(Hue, Saturation, Brightness);
+      dropPositions[s] = (dropPositions[s] + 1) % LEDS_PER_STRIP;
+  }
+}
+
+// Pattern Mode 13 - Aurora Borealis Style
+void PatternMode13() {
+  static uint32_t timeCounter = 0;
+  timeCounter++;
+  for (int i = 0; i < currentLEDCount; i++) {
+      uint8_t localHue = (Hue + sin8(i * 16 + timeCounter * (Speed/10 + 1))) % 255;
+      uint8_t localBright = (Brightness * sin8(i * 8 + timeCounter * (Speed/15 + 1))) / 255;
+      leds[i] = CHSV(localHue, Saturation, localBright);
+  }
+}
+
+// Pattern Mode 14 - Glitter/Starfield
+void PatternMode14() {
+  fadeToBlackBy(leds, currentLEDCount, 10);
+  int sparkles = currentLEDCount / 50; // Adjust density as needed
+  for (int i = 0; i < sparkles; i++) {
+      int pos = random(0, currentLEDCount);
+      leds[pos] = CHSV(Hue, Saturation, Brightness);
+  }
 }
 
 // -------- Setup and Main Loop -------- //
@@ -501,7 +580,7 @@ void loop() {
   
   if (ledRunning) {
     // Always use rainbow colour mode (auto-increment hue)
-    ColourMode1();
+    updateHue();
     
     // Execute selected pattern mode
     switch (PatMode) {
@@ -512,6 +591,14 @@ void loop() {
       case 4: PatternMode4(); break;
       case 5: PatternMode5(); break;
       case 6: PatternMode6(); break;
+      case 7: PatternMode7(); break;
+      case 8: PatternMode8(); break;
+      case 9: PatternMode9(); break;
+      case 10: PatternMode10(); break;
+      case 11: PatternMode11(); break;
+      case 12: PatternMode12(); break;
+      case 13: PatternMode13(); break;
+      case 14: PatternMode14(); break;
       default: PatternMode0(); break;
     }
     
